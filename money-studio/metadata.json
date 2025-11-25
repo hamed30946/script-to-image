@@ -1,0 +1,5 @@
+{
+  "name": "Script-to-Image Studio",
+  "description": "A dark-themed studio tool that uses Gemini to analyze scripts and generate detailed image prompts for visual storytelling.",
+  "requestFramePermissions": []
+}
