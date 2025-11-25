@@ -1,12 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Scene, GenerationOptions } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_API_KEY });
 export const analyzeScript = async (options: GenerationOptions): Promise<Scene[]> => {
   if (!process.env.API_KEY) {
-    throw new Error("API Key is missing.");
-  }
+if (!import.meta.env.VITE_GOOGLE_API_KEY) {  }
 
   const { script, niche, styleKeywords, referenceImage, aspectRatio } = options;
 
