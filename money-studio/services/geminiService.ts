@@ -1,14 +1,25 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Scene, GenerationOptions } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_API_KEY });
-export const analyzeScript = async (options: GenerationOptions): Promise<Scene[]> => {
-  if (!process.env.API_KEY) {
-if (!import.meta.env.VITE_GOOGLE_API_KEY) {  }
+// 1) نقروا الـ API key من Vite env
+const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
+if (!apiKey) {
+  // هاد الخطأ غادي يبان غير فـ build / console
+  throw new Error(
+    "VITE_GOOGLE_API_KEY is missing. Please set it in Vercel → Project Settings → Environment Variables."
+  );
+}
+
+// 2) نجهّزوا العميل ديال Gemini غير مرّة وحدة
+const ai = new GoogleGenAI({ apiKey });
+
+export const analyzeScript = async (
+  options: GenerationOptions
+): Promise<Scene[]> => {
   const { script, niche, styleKeywords, referenceImage, aspectRatio } = options;
 
-  // Construct the text prompt
+  // 3) نص البرومبت
   let promptText = `
     You are an expert visual director. Analyze the following script and break it down into distinct visual scenes.
     
@@ -26,31 +37,42 @@ if (!import.meta.env.VITE_GOOGLE_API_KEY) {  }
   `;
 
   if (referenceImage) {
-    promptText += `\n\nNOTE: I have provided a reference image. Analyze its artistic style (color palette, lighting, texture) and apply that specific style to ALL generated image prompts.`;
+    promptText += `
+
+NOTE: I have provided a reference image. Analyze its artistic style (color palette, lighting, texture) and apply that specific style to ALL generated image prompts.`;
   }
 
-  const contents: any[] = [{ text: promptText }];
+  // 4) parts ديال Gemini (نص + صورة اختيارية)
+  const parts: any[] = [{ text: promptText }];
 
-  // Add reference image if provided (Multimodal)
   if (referenceImage) {
-    // Assuming referenceImage is a data URL like "data:image/png;base64,..."
-    const base64Data = referenceImage.split(',')[1];
-    const mimeType = referenceImage.substring(referenceImage.indexOf(':') + 1, referenceImage.indexOf(';'));
-    
+    // referenceImage مفروض تكون data URL بحال: "data:image/png;base64,AAAA..."
+    const base64Data = referenceImage.split(",")[1];
+    const mimeType = referenceImage.substring(
+      referenceImage.indexOf(":") + 1,
+      referenceImage.indexOf(";")
+    );
+
     if (base64Data) {
-      contents.push({
+      parts.push({
         inlineData: {
-          mimeType: mimeType,
-          data: base64Data
-        }
+          mimeType,
+          data: base64Data,
+        },
       });
     }
   }
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash", // Flash is fast and good for multimodal
-      contents: contents.length > 1 ? [{ parts: contents }] : contents[0].text,
+    // 5) نطلبو من Gemini JSON منظم
+    const response: any = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts,
+        },
+      ],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -69,18 +91,24 @@ if (!import.meta.env.VITE_GOOGLE_API_KEY) {  }
               },
             },
           },
+          required: ["scenes"],
         },
       },
     });
 
-    const text = response.text;
+    // 6) نحاول نخرج النص سواء كان output_text أو text()
+    const text: string | undefined =
+      response.output_text ??
+      (typeof response.text === "function"
+        ? response.text()
+        : response.text);
+
     if (!text) {
       throw new Error("No response from Gemini.");
     }
 
     const data = JSON.parse(text);
     return data.scenes || [];
-
   } catch (error) {
     console.error("Gemini Error:", error);
     throw error;
